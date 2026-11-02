@@ -1,0 +1,9 @@
+Tool: built-in image_gen
+
+Use case: logo-brand
+Asset type: Windows desktop application and system-tray icon, one square raster icon with genuine transparency.
+Primary request: create a polished, instantly recognizable icon for a touchpad smooth-scrolling utility.
+Subject: a simple rounded rectangular touchpad with one bold pair of flowing vertical scroll arrows integrated into its center.
+Style/medium: crisp contemporary desktop utility icon, restrained dimensional polish and clean broad shapes.
+Composition/framing: one centered isolated symbol, nearly filling the square while retaining a small transparent safety margin; the whole symbol must remain legible at 16 and 32 pixels.
+Constraints: transparent outside the icon, high contrast on both light and dark Windows taskbars, broad edges and minimal internal detail, no lettering, no labels, no words, no mockup, no surrounding scene, no watermark, no contact sheet.

@@ -1,0 +1,17 @@
+/build/
+*.exe
+*.obj
+*.res
+*.pdb
+*.ilk
+*.log
+/gestures.ini
+/gestures.ini.tmp-*
+/installation.json
+/autostart-task.xml
+/recovery/
+/checkpoints/
+/handoff-preview/
+*.bundle
+*.pfx
+*.key

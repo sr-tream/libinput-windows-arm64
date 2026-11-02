@@ -1,0 +1,5 @@
+libinput 1.32.0
+https://gitlab.freedesktop.org/libinput/libinput
+Commit: 80f58e741e68f346a98b562eb06b44401c47938f
+
+Included functions are unchanged extracts. The compatibility structs and Windows adapter are separate. This is a scroll-component port, not the full libinput API or a kernel driver.
