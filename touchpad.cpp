@@ -130,7 +130,7 @@ static void parse(BYTE* report, ULONG length, HANDLE source) {
         vals[data[i].DataIndex]=button?static_cast<ULONG>(data[i].On!=FALSE):data[i].RawValue;
     }
     frame(vals,report[0]);
-    if(runMode) return;
+    if(runMode || pointerWorkerMode) return;
     char line[2048];
     int pos=std::snprintf(line,sizeof(line),"REPORT t=%llu source=%p id=%u",GetTickCount64(),source,report[0]);
     for(const auto& f:device.fields) {
@@ -171,9 +171,18 @@ static LRESULT CALLBACK wndproc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
     if(runtimeMessage(h,msg,wp,lp)) return 0;
     return DefWindowProcW(h,msg,wp,lp);
 }
+#include "pointer_worker.h"
 int wmain(int argc,wchar_t** argv) {
     // Resolve cursor positions and application windows in one physical DPI space.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if(argc>=2 && std::wcscmp(argv[1],L"--pointer-preview")==0) {
+        auto options=loadGestureSettings(appDirectory()+L"\\gestures.ini").pointer;
+        options.enabled=true;
+        for(int i=3;i<argc;++i) { if(std::wcscmp(argv[i],L"--mouse-dpi")==0 && i+1<argc) { options.mouseAdaptive=true; options.mouseDpi=std::clamp(static_cast<unsigned>(_wtoi(argv[++i])),100u,64000u); } else if(std::wcscmp(argv[i],L"--speed")==0 && i+1<argc) options.touchpadSpeed=std::clamp(_wtof(argv[++i]),-1.0,1.0); }
+        return PointerBackend::run(options,argc>=3?std::clamp(static_cast<unsigned>(_wtoi(argv[2])),15u,600u):120);
+    }
+    if(argc>=3 && std::wcscmp(argv[1],L"--pointer-worker")==0) return PointerBackend::run(loadGestureSettings(appDirectory()+L"\\gestures.ini").pointer,0,static_cast<DWORD>(_wtol(argv[2])));
+    if(argc>=2 && std::wcscmp(argv[1],L"--stop-pointer")==0) { HANDLE event=OpenEventW(EVENT_MODIFY_STATE,FALSE,PointerBackend::stopName); if(event) { SetEvent(event); CloseHandle(event); } return 0; }
     if(argc>=2 && std::wcscmp(argv[1],L"--check-icon")==0) {
         for(int size: {16,20,24,32,48,64,128,256}) {
             HICON icon=static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(101),IMAGE_ICON,size,size,0));
@@ -201,6 +210,7 @@ int wmain(int argc,wchar_t** argv) {
         ExitProcess(77);
     }
     if(argc>=2 && std::wcscmp(argv[1],L"--stop")==0) {
+        HANDLE pointerStop=OpenEventW(EVENT_MODIFY_STATE,FALSE,PointerBackend::stopName); if(pointerStop) { SetEvent(pointerStop); CloseHandle(pointerStop); }
         HANDLE e=OpenEventW(EVENT_MODIFY_STATE,FALSE,stopName);
         if(!e) return GetLastError()==ERROR_FILE_NOT_FOUND?0:6;
         bool stopped=SetEvent(e)!=FALSE; CloseHandle(e); return stopped?0:6;
@@ -281,7 +291,7 @@ int wmain(int argc,wchar_t** argv) {
             // inertia tick when both become ready at the same time.
             if(!quit && ready==WAIT_OBJECT_0) momentumTick();
         }
-        stopInteractionMonitoring(); touchscreenOutput.close(); logTouchEnd(); cancelMomentum(true); CloseHandle(inertiaTimer); inertiaTimer=nullptr;
+        stopPointerWorker(); stopInteractionMonitoring(); touchscreenOutput.close(); logTouchEnd(); cancelMomentum(true); CloseHandle(inertiaTimer); inertiaTimer=nullptr;
     } else while((rc=GetMessageW(&msg,nullptr,0,0))>0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     logLatency(true);
     if(runMode && duration) {

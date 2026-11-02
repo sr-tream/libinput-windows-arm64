@@ -36,8 +36,10 @@ Run the source checks from a normal interactive desktop session:
 | `app_profiles_tests.cpp` | Unicode paths, exact/basename precedence, atomic save, hot reload and actual frame routing with simulated output. |
 | `touchscreen_output_tests.cpp` | Screen-contact lifecycle, coordinate bounds, settings, echo filtering and cancellation. |
 | `interaction_tests.cpp` | Actual click/focus callback paths and wheel-momentum cancellation. |
+| `pointer_acceleration_tests.cpp` | Upstream profiles, speed mapping, low/high DPI normalization, reversals, recontact and malformed deltas/timestamps. |
+| `pointer_output_tests.cpp` | Motion-only suppression, tagged output/echo handling, subpixel motion, virtual-desktop coordinates, Windows mouse fallback and failure recovery with simulated APIs. |
 
-These checks do not register the real touchpad, inject real input or change its settings. The profile fixture creates its own INI and user-scoped notification event. The optional UI test briefly opens its own settings/picker windows and saves captures in `build/test-data/`; it uses a test INI and does not change personal application rules. An interactive desktop with visible applications is needed for the picker test.
+These checks do not register the real touchpad, inject real input or change its settings. The profile fixture creates its own INI and user-scoped notification event. The optional UI test briefly opens its own settings/picker/pointer windows, validates their controls and saves captures in `build/test-data/`; it uses a test INI and does not change personal application rules. An interactive desktop with visible applications is needed for the picker test.
 
 ## Optional replay
 
@@ -57,9 +59,13 @@ Synthetic tests cannot establish the final feel of application scrolling. For a 
 
 Device support currently assumes five contact collections, 42-byte reports and the validated physical coordinate range. Changing only VID/PID checks is insufficient to add another touchpad. Extend descriptor validation, coordinate conversion and replay fixtures together.
 
+For pointer acceleration, also check slow targeting, quick sweeps, reversals, click-dragging, transitions to/from two fingers, mouse movement, multiple monitors, preference reload, Ctrl+Alt+F11 and service stop. A bounded standalone preview is available with `--pointer-preview 120`; add `--speed 0.2` for a touchpad setting or `--mouse-dpi 800` to enable adaptive mouse motion during that preview. It changes live cursor processing only until timeout/stop and does not save preferences. Avoid running a preview alongside an active pointer helper.
+
 ## Diagnostics
 
 The normal worker writes `session.log` with configuration, device fields, wheel samples and aggregated counters. `--profile` adds handler, message-age estimate and injection-time histograms. These are software timing measurements; they do not measure physical touch-to-display latency.
+
+The optional pointer helper writes `pointer.log`, including active speed/DPI options, elevation and aggregate blocked/output/acknowledgement counts at exit. It does not log raw contact coordinates.
 
 An explicit non-running probe such as `--seconds 30 --log probe.log` records raw contact fields and coordinates without injecting input. Treat that output as personal diagnostic data and review it before sharing. Normal logs may contain process IDs, motion deltas and pointer handles too.
 

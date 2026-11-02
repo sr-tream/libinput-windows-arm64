@@ -1,8 +1,8 @@
 # libinput scroll for Windows ARM64
 
-Experimental native Windows ARM64 utility for smoother two-finger scrolling, with configurable native Windows gestures and touchscreen emulation. Tested on the ASCE1200 touchpad in an ASUS Vivobook S 15 S5507QA/S5507QAD.
+Experimental native Windows ARM64 utility for smoother two-finger scrolling and adaptive cursor acceleration, with configurable native Windows gestures and touchscreen emulation. Tested on the ASCE1200 touchpad in an ASUS Vivobook S 15 S5507QA/S5507QAD.
 
-This is a **partial port of libinput's scrolling components**. Four upstream functions are included unchanged; HID decoding, contact tracking, Windows output, gesture routing and momentum are implemented separately. The ASUS HID/I2C driver remains installed. This project runs in user space and does not replace a kernel driver.
+This is a **partial port of libinput's scrolling and adaptive pointer components**. Seventeen upstream functions are included unchanged; HID decoding, contact tracking, Windows output, gesture routing and momentum are implemented separately. The ASUS HID/I2C driver remains installed. This project runs in user space and does not replace a kernel driver.
 
 ## Current support
 
@@ -12,7 +12,8 @@ This is a **partial port of libinput's scrolling components**. Four upstream fun
 | Tested system | Windows 11, build 26200 |
 | Tested touchpad | ASCE1200, HID VID `04F3`, PID `32E2`, 42-byte reports |
 | Scrolling | Vertical and horizontal wheel output, adjustable speed and momentum |
-| Cursor, clicks, pinch, three/four fingers | Existing Windows processing |
+| Cursor | Optional libinput adaptive acceleration for the touchpad and relative external mice |
+| Clicks, pinch, three/four fingers | Existing Windows processing |
 | Horizontal gestures | Per-application Windows driver / Touchscreen / No gestures |
 | Other hardware | Unvalidated; the runtime rejects unsupported devices |
 
@@ -34,9 +35,13 @@ Copy the example only on the first run. Existing `gestures.ini` contains your pr
 
 Stop and restore native scrolling with **Ctrl+Alt+F12**, `Stop.cmd`, or the tray menu. A separate watchdog restores the previous native panning setting if the worker exits unexpectedly. Double-click the tray icon or run `Settings.cmd` to open settings; running the EXE without arguments opens settings too.
 
+Open **Pointer acceleration…** in Settings to enable the adaptive profile and adjust touchpad speed. External mouse acceleration is a separate option with a DPI field. Both options are off in the example configuration. **Ctrl+Alt+F11** stops only pointer replacement and restores native cursor movement for the current session.
+
 The application interface and documentation are in English.
 
 ![English application settings](docs/images/settings.png)
+
+![Adaptive pointer settings](docs/images/pointer-settings.png)
 
 To enable login startup:
 

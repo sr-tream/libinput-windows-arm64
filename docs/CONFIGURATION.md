@@ -70,3 +70,28 @@ inertia_friction=0.002
 Velocity decays as `v(t + dt) = v(t) * (1 - friction)^dt_ms`. At the default `0.002`, the decay time constant is approximately half a second. Application interpretation of wheel events still affects the result.
 
 Wheel momentum stops on a real mouse button or touchpad tap, a new touch with two or more fingers, a foreground-window change, or a changed wheel destination. Moving the cursor within the same destination preserves it. Switching applications cannot transfer an old wheel coast into the new window.
+
+## Adaptive pointer acceleration
+
+Choose **Pointer acceleration…** in Settings. **Use settings** updates the pending values; **Apply** in the main window saves them. These options are global, independent of application gesture rules. Pointer changes restart the separate pointer helper immediately; gesture rules still wait for the next gesture.
+
+| Option | Range/default | Meaning |
+| --- | --- | --- |
+| Enable adaptive pointer acceleration | Off | Replaces single-finger touchpad cursor movement with libinput's adaptive touchpad profile. |
+| Touchpad speed | −1 to +1; default 0 | libinput's acceleration speed setting; 0 is the upstream baseline. |
+| Also accelerate the external mouse | Off | Uses the adaptive mouse profile for physical relative mice. Otherwise their original relative counts are replayed through Windows mouse processing. |
+| Mouse speed | −1 to +1; default 0 | Independent speed for the adaptive mouse profile. |
+| Mouse DPI | 100–64000; default 1000 | Match the DPI selected on the mouse. One value applies to all connected relative mice. |
+
+```ini
+[pointer]
+enabled=0
+touchpad_speed=0
+mouse_adaptive=0
+mouse_speed=0
+mouse_dpi=1000
+```
+
+The helper uses raw touchpad contacts and mouse counts, with absolute cursor output for adaptive motion. Windows pointer acceleration is not applied a second time to that output. It does not modify the Windows pointer-speed or Enhance Pointer Precision preferences. Clicks, wheel input and injected touchscreen gestures keep their existing processing.
+
+Press **Ctrl+Alt+F11** to stop pointer replacement for the current session while scrolling continues. To resume, disable and apply the pointer option, then enable and apply it again, or restart the service. **Ctrl+Alt+F12** and `Stop.cmd` stop both scrolling and pointer replacement. The saved enable preference remains in effect for the next service start.

@@ -37,10 +37,12 @@ Windows can promote a screen contact to mouse input. The cancellation observer i
 | Supervisor | Runs elevated in the interactive session; starts/restarts the worker after recoverable device or suspend events. |
 | Worker | Owns Raw Input, wheel output, gesture routing, timers and the tray icon. |
 | Watchdog | Restores the original panning flag if the worker exits unexpectedly. |
+| Optional pointer helper | Reads raw touchpad/mouse movement, applies adaptive profiles and injects cursor motion. Exits when its parent worker exits. |
+| Pointer hook thread | Suppresses unmarked native mouse motion only; passes buttons, wheels and injected/promoted input. |
 | Settings process | Displays the English UI, picks executables and saves preferences. |
 | Profile background thread | Reloads the INI and caches destination-window executable profiles. |
 
-File reading and application discovery stay outside the HID event path. A newly encountered window can require one limited process-path query when a gesture starts. There are no UI Automation provider queries or synchronous mouse hooks.
+File reading and application discovery stay outside the HID event path. A newly encountered window can require one limited process-path query when a gesture starts. There are no UI Automation provider queries. The scrolling worker uses no synchronous mouse hook. Optional pointer replacement requires a minimal motion hook on a dedicated thread in another process; it performs no file I/O, window queries or acceleration math.
 
 Profile snapshots are immutable and published atomically. The worker latches one profile per gesture. A user-scoped, medium-integrity event wakes the profile thread after a save; periodic file checks also detect edits. This event carries no arbitrary command or executable path.
 
@@ -52,4 +54,14 @@ Stop notifications use a user-scoped event accessible to the ordinary settings/s
 
 ## Upstream scope
 
-Only four libinput functions are included: `touchpad_constant_filter`, `xy_get_direction`, `tp_gesture_same_directions`, and `tp_gesture_apply_scroll_constraints`. Their bodies are unchanged. Contact classification, pointer acceleration, palm rejection, the full libinput gesture state machine and Linux event-device integration are not ported. See [NOTICE.md](../NOTICE.md) for the pinned version and licenses.
+Seventeen libinput functions are included unchanged: four scrolling/direction functions and thirteen pointer tracker, speed and adaptive-profile functions. See [NOTICE.md](../NOTICE.md) for the pinned version and locations. Contact classification, palm rejection, the full libinput gesture state machine and Linux event-device integration are not ported.
+
+## Pointer replacement
+
+`pointer_acceleration.h` adapts upstream velocity trackers, direction history and Simpson averaging to physical touchpad deltas and relative mouse counts. Touchpad motion is normalized from millimeters to 1000 DPI before filtering. Mice use the upstream normalized profile at 1000 DPI and above, and the low-DPI profile below it. Single-finger landing, contact replacement, a long report gap or transition back from multiple fingers reanchors the touchpad without moving the cursor.
+
+On the tested device, native touchpad and mouse movement are indistinguishable in `WH_MOUSE_LL`. While enabled, the helper therefore suppresses all unmarked native mouse movement. Raw touchpad HID reports supply adaptive touchpad motion; null-device mouse echoes are ignored. A physical relative mouse is either accelerated separately or replayed as relative counts through Windows, depending on its option. Buttons and wheels are passed unchanged. Tagged/injected touch, pen and automation events are also passed unchanged.
+
+Adaptive output uses tagged absolute `SendInput` events in physical virtual-desktop coordinates, retaining fractional motion between reports. This avoids applying Windows relative mouse acceleration twice and supports monitors with negative desktop origins. It is a Windows user-space adapter, not an identical Linux input stack or a virtual Precision Touchpad.
+
+The hook checks an input-thread heartbeat and stops blocking if it is older than 100 ms. The helper stops injection if its own hook acknowledgements remain missing for 20 ms, injection fails, or an unsupported absolute mouse is encountered. Parent death, suspend and explicit stop also release interception. An unexpected helper exit remains stopped until the pointer preference changes or the service restarts, avoiding a failure/restart loop. No Windows pointer preferences are changed.

@@ -12,7 +12,7 @@
 
 namespace SettingsUi {
 static constexpr wchar_t mainClass[]=L"LibinputScrollSettings",pickerClass[]=L"LibinputScrollAppPicker";
-static constexpr int appsId=100,modeId=101,gainId=102,invertId=103,axisId=104,addId=105,removeId=106;
+static constexpr int appsId=100,modeId=101,gainId=102,invertId=103,axisId=104,addId=105,removeId=106,pointerId=107;
 static HFONT normalFont=nullptr,titleFont=nullptr,sectionFont=nullptr;
 static HBRUSH background=nullptr;
 static int scale=96;
@@ -101,6 +101,7 @@ struct Picker {
         EnableWindow(owner,TRUE); SetForegroundWindow(owner); return selected;
     }
 };
+#include "pointer_settings_window.h"
 struct Window {
     HWND window=nullptr,list=nullptr; GestureSettings data; std::wstring path,testImage;
     int selected=-1; bool loading=false,dirty=false,selfTest=false; int result=0;
@@ -151,11 +152,11 @@ struct Window {
     bool save(bool report=true) {
         if(!commit(report)) return false; DWORD failure=0;
         if(!saveGestureSettings(path,data,&failure)) { if(report) { auto error=L"Could not save settings. Error code: "+std::to_wstring(failure); MessageBoxW(window,error.c_str(),L"Settings",MB_OK|MB_ICONERROR); } return false; }
-        dirty=false; SetWindowTextW(GetDlgItem(window,320),L"Saved. Changes take effect between gestures."); EnableWindow(GetDlgItem(window,IDOK),FALSE); return true;
+        dirty=false; SetWindowTextW(GetDlgItem(window,320),L"Saved. Pointer settings apply now; gesture rules apply between gestures."); EnableWindow(GetDlgItem(window,IDOK),FALSE); return true;
     }
     void layout() {
         RECT bounds{}; GetClientRect(window,&bounds); int w=MulDiv(bounds.right,96,scale),h=MulDiv(bounds.bottom,96,scale),right=w-394;
-        place(window,300,24,18,w-48,42); place(window,301,24,66,w-48,28); place(window,302,24,108,300,22);
+        place(window,300,24,18,w-280,42); place(window,pointerId,w-240,25,216,35); place(window,301,24,66,w-48,28); place(window,302,24,108,300,22);
         place(window,appsId,24,136,310,h-264); place(window,addId,24,h-112,170,33); place(window,removeId,204,h-112,130,33);
         place(window,304,370,105,right,30); place(window,305,370,140,right,35); place(window,306,370,183,right,23);
         place(window,modeId,370,210,right,200); place(window,310,370,251,right,52); place(window,307,370,320,right,164);
@@ -173,6 +174,20 @@ struct Window {
         ok=ok && IsWindowEnabled(GetDlgItem(window,invertId)) && IsWindowEnabled(GetDlgItem(window,removeId));
         SetWindowTextW(GetDlgItem(window,gainId),L"0"); ok=!commit(false) && ok; SetWindowTextW(GetDlgItem(window,gainId),L"14,5");
         ok=save(false) && ok;
+        PointerDialog pointer; pointer.value=data.pointer; HWND pointerWindow=pointer.create(window);
+        if(pointerWindow) {
+            ShowWindow(pointerWindow,SW_SHOWNOACTIVATE);
+            SendMessageW(GetDlgItem(pointerWindow,400),BM_SETCHECK,BST_CHECKED,0);
+            SendMessageW(GetDlgItem(pointerWindow,403),BM_SETCHECK,BST_CHECKED,0);
+            SendMessageW(GetDlgItem(pointerWindow,401),TBM_SETPOS,TRUE,35);
+            SendMessageW(GetDlgItem(pointerWindow,404),TBM_SETPOS,TRUE,-25);
+            SetWindowTextW(GetDlgItem(pointerWindow,406),L"800"); pointer.refresh();
+            ok=pointer.commit(false) && ok; data.pointer=pointer.value;
+            ok=data.pointer.enabled && data.pointer.mouseAdaptive && data.pointer.touchpadSpeed==.35 && data.pointer.mouseSpeed==-.25 && data.pointer.mouseDpi==800 && ok;
+            UpdateWindow(pointerWindow); ok=capture(pointerWindow,testImage+L".pointer.png") && ok;
+            SetWindowTextW(GetDlgItem(pointerWindow,406),L"0"); ok=!pointer.commit(false) && ok;
+            DestroyWindow(pointerWindow); ok=save(false) && loadGestureSettings(path).pointer==data.pointer && ok;
+        } else ok=false;
         UpdateWindow(window); ok=capture(window,testImage) && ok;
         Picker picker;
         HWND pick=CreateWindowExW(WS_EX_DLGMODALFRAME,pickerClass,L"Add application",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,px(80),px(80),px(760),px(465),window,nullptr,GetModuleHandleW(nullptr),&picker);
@@ -192,6 +207,7 @@ struct Window {
         if(message==WM_CREATE) {
             control(window,L"STATIC",L"Touchpad gestures",0,300); SendMessageW(GetDlgItem(window,300),WM_SETFONT,reinterpret_cast<WPARAM>(titleFont),TRUE);
             control(window,L"STATIC",L"Configure gesture handling for each application.",0,301);
+            control(window,L"BUTTON",L"Pointer acceleration…",BS_PUSHBUTTON|WS_TABSTOP,pointerId);
             control(window,L"STATIC",L"Applications",0,302);
             self->list=control(window,WC_LISTVIEWW,L"",LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|WS_TABSTOP|WS_BORDER,appsId);
             ListView_SetExtendedListViewStyle(self->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER); SetWindowTheme(self->list,L"Explorer",nullptr);
@@ -217,6 +233,7 @@ struct Window {
             int id=LOWORD(wp),notification=HIWORD(wp);
             if(id==IDOK) self->save(); else if(id==IDCANCEL) SendMessageW(window,WM_CLOSE,0,0);
             else if(id==addId && self->commit()) { Picker picker; self->add(picker.show(window)); }
+            else if(id==pointerId && self->commit()) { PointerDialog dialog; dialog.value=self->data.pointer; if(dialog.show(window)) { self->data.pointer=dialog.value; self->markDirty(); } }
             else if(id==removeId && self->selected>0) { int old=self->selected; self->data.applications.erase(self->data.applications.begin()+old-1); self->rows(std::min(old,static_cast<int>(self->data.applications.size()))); self->markDirty(); }
             else if(id==modeId && notification==CBN_SELCHANGE) { self->modeDescription(); self->markDirty(); }
             else if((id==gainId && notification==EN_CHANGE) || id==invertId || id==axisId) self->markDirty(); return 0;
@@ -246,12 +263,13 @@ inline int run(const std::wstring& path,bool selfTest=false,const std::wstring& 
         singleton=CreateMutexW(nullptr,TRUE,L"Local\\LibinputASCE1200SettingsWindow");
         if(singleton && GetLastError()==ERROR_ALREADY_EXISTS) { existing=FindWindowW(mainClass,nullptr); if(existing) { ShowWindowAsync(existing,SW_RESTORE); SetForegroundWindow(existing); } CloseHandle(singleton); return 0; }
     }
-    INITCOMMONCONTROLSEX common{sizeof(common),ICC_LISTVIEW_CLASSES|ICC_STANDARD_CLASSES}; InitCommonControlsEx(&common);
+    INITCOMMONCONTROLSEX common{sizeof(common),ICC_LISTVIEW_CLASSES|ICC_STANDARD_CLASSES|ICC_BAR_CLASSES}; InitCommonControlsEx(&common);
     Gdiplus::GdiplusStartupInput startup; ULONG_PTR graphics=0; Gdiplus::GdiplusStartup(&graphics,&startup,nullptr);
     fonts(GetDpiForSystem()); background=CreateSolidBrush(RGB(248,250,252));
     WNDCLASSW wc{}; wc.lpfnWndProc=Window::procedure; wc.hInstance=GetModuleHandleW(nullptr); wc.lpszClassName=mainClass; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=background;
     wc.hIcon=static_cast<HICON>(LoadImageW(wc.hInstance,MAKEINTRESOURCEW(101),IMAGE_ICON,32,32,LR_SHARED)); RegisterClassW(&wc);
     wc.lpfnWndProc=Picker::procedure; wc.lpszClassName=pickerClass; wc.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1); RegisterClassW(&wc);
+    wc.lpfnWndProc=PointerDialog::procedure; wc.lpszClassName=pointerClass; wc.hbrBackground=background; RegisterClassW(&wc);
     Window state; state.path=path; state.data=loadGestureSettings(path); state.selfTest=selfTest; state.testImage=image;
     HWND window=CreateWindowExW(0,mainClass,L"libinput — Settings",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,px(960),px(640),nullptr,nullptr,GetModuleHandleW(nullptr),&state);
     if(!window) return 1; ShowWindow(window,selfTest?SW_SHOWNOACTIVATE:SW_SHOW); UpdateWindow(window);

@@ -10,6 +10,10 @@
 #include "gesture_settings.h"
 static void openSettingsWindow();
 static bool appProfiles=false,profileLatched=false;
+static bool pointerWorkerMode=false;
+static void feedPointerContacts(const std::vector<Contact>&,ULONG,bool);
+static void updatePointerWorker();
+static void stopPointerWorker();
 static GestureProfileRuntime profileRuntime;
 static ProfileGestureRouter profileRouter;
 static bool runMode=false, ambiguous=false, panChanged=false, originalPan=true, reversed=false, live=false;
@@ -287,6 +291,7 @@ static void frame(const std::map<USHORT,ULONG>& vals,UCHAR reportID) {
     }
     if(contacts.size()>count) { ++rejected; processor.reset(); return; }
     ++frames; if(contacts.size()==2) ++twoFingerFrames;
+    if(pointerWorkerMode) { feedPointerContacts(contacts,scan,clicked); return; }
     if(!runMode) return;
     if(!live) {
         // Do not change anything until live, complete two-finger frames arrive.
@@ -359,6 +364,7 @@ static bool runtimeMessage(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
         log("Device change; stopping to revalidate descriptor"); PostQuitMessage(0); return true;
     }
     if(msg==WM_TIMER) {
+        if(appProfiles) updatePointerWorker();
         logLatency();
         if(live && watchdogProcess && WaitForSingleObject(watchdogProcess,0)==WAIT_OBJECT_0) { log("ERROR: watchdog exited; restoring native scrolling"); PostQuitMessage(15); }
         if((deadline && GetTickCount64()>=deadline) || (stopEvent && WaitForSingleObject(stopEvent,0)==WAIT_OBJECT_0)) PostQuitMessage(0);

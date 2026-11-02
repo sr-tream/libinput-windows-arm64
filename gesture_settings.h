@@ -10,6 +10,7 @@
 #include "windows_access.h"
 #include "touchscreen_handoff.h"
 #include "touchscreen_output.h"
+#include "pointer_options.h"
 
 enum class GestureMode { None,WindowsV1,Touchscreen };
 inline const wchar_t* gestureModeKey(GestureMode mode) { return mode==GestureMode::WindowsV1?L"v1":mode==GestureMode::Touchscreen?L"touchscreen":L"none"; }
@@ -17,7 +18,7 @@ inline const wchar_t* gestureModeLabel(GestureMode mode) { return mode==GestureM
 inline GestureMode parseGestureMode(const std::wstring& text) { return _wcsicmp(text.c_str(),L"v1")==0?GestureMode::WindowsV1:_wcsicmp(text.c_str(),L"touchscreen")==0?GestureMode::Touchscreen:GestureMode::None; }
 struct GestureProfile { GestureMode mode=GestureMode::None; TouchscreenOptions touch; };
 struct ApplicationRule { std::wstring image; GestureProfile profile; };
-struct GestureSettings { GestureProfile defaults{GestureMode::WindowsV1,{}}; std::vector<ApplicationRule> applications; };
+struct GestureSettings { GestureProfile defaults{GestureMode::WindowsV1,{}}; std::vector<ApplicationRule> applications; PointerSettings pointer; };
 inline std::wstring executableBase(const std::wstring& path) { auto slash=path.find_last_of(L"\\/"); return path.substr(slash==std::wstring::npos?0:slash+1); }
 inline bool sameImage(const std::wstring& a,const std::wstring& b) { return CompareStringOrdinal(a.c_str(),-1,b.c_str(),-1,TRUE)==CSTR_EQUAL; }
 inline std::wstring imageForWindow(HWND window) {
@@ -48,6 +49,11 @@ inline GestureProfile readGestureProfile(const std::wstring& path,const wchar_t*
 }
 inline GestureSettings loadGestureSettings(const std::wstring& path) {
     GestureSettings settings; settings.defaults=readGestureProfile(path,L"default",GestureMode::WindowsV1);
+    settings.pointer.enabled=GetPrivateProfileIntW(L"pointer",L"enabled",0,path.c_str())!=0;
+    settings.pointer.mouseAdaptive=GetPrivateProfileIntW(L"pointer",L"mouse_adaptive",0,path.c_str())!=0;
+    auto speed=[&](const wchar_t* key) { double value=_wtof(iniText(path,L"pointer",key,L"0").c_str()); return std::clamp(std::isfinite(value)?value:0.0,-1.0,1.0); };
+    settings.pointer.touchpadSpeed=speed(L"touchpad_speed"); settings.pointer.mouseSpeed=speed(L"mouse_speed");
+    settings.pointer.mouseDpi=std::clamp(GetPrivateProfileIntW(L"pointer",L"mouse_dpi",1000,path.c_str()),100u,64000u);
     unsigned count=std::min(GetPrivateProfileIntW(L"applications",L"count",0,path.c_str()),128u);
     for(unsigned i=0;i<count;++i) {
         auto section=L"app."+std::to_wstring(i); auto image=iniText(path,section.c_str(),L"image",L"");
@@ -70,6 +76,7 @@ inline bool saveGestureSettings(const std::wstring& path,const GestureSettings& 
             L"\r\ntouch_invert_x="+(profile.touch.invertHorizontal?L"1":L"0")+L"\r\ntouch_lock_y="+(profile.touch.lockVertical?L"1":L"0")+L"\r\n";
     };
     append(L"default",settings.defaults);
+    wchar_t pointerValues[320]; swprintf_s(pointerValues,L"\r\n[pointer]\r\nenabled=%d\r\ntouchpad_speed=%.3f\r\nmouse_adaptive=%d\r\nmouse_speed=%.3f\r\nmouse_dpi=%u\r\n",settings.pointer.enabled,settings.pointer.touchpadSpeed,settings.pointer.mouseAdaptive,settings.pointer.mouseSpeed,settings.pointer.mouseDpi); text+=pointerValues;
     text+=L"\r\n[applications]\r\ncount="+std::to_wstring(settings.applications.size())+L"\r\n";
     for(size_t i=0;i<settings.applications.size();++i) {
         const auto& app=settings.applications[i]; auto section=L"app."+std::to_wstring(i);
@@ -129,6 +136,7 @@ public:
         return true;
     }
     void notifyContext() { if(changed) SetEvent(changed); }
+    PointerSettings pointerOptions() const { auto config=current.load(); return config?config->pointer:PointerSettings{}; }
     void stop() {
         if(quit) SetEvent(quit); if(worker.joinable()) worker.join();
         if(quit) { CloseHandle(quit); quit=nullptr; } if(changed) { CloseHandle(changed); changed=nullptr; }

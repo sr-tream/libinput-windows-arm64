@@ -4,7 +4,7 @@ Push-Location -LiteralPath $PSScriptRoot
 try {
     $data=Join-Path $PSScriptRoot 'build\test-data'
     New-Item -ItemType Directory -Path $data -Force | Out-Null
-    foreach ($source in 'scroll_tests.cpp','gesture_handoff_tests.cpp','app_profiles_tests.cpp','touchscreen_output_tests.cpp','interaction_tests.cpp') {
+    foreach ($source in 'scroll_tests.cpp','gesture_handoff_tests.cpp','app_profiles_tests.cpp','touchscreen_output_tests.cpp','interaction_tests.cpp','pointer_acceleration_tests.cpp','pointer_output_tests.cpp') {
         $name=[IO.Path]::GetFileNameWithoutExtension($source)
         & (Join-Path $PSScriptRoot 'build.ps1') -Name $name -Source $source
         $testArguments=@()
